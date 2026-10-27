@@ -1,0 +1,599 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Plain JSON</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: toolbar on top, two panes (input left, result views right), status bar below. Stacks on phones. */
+:root{
+  --bg:#f3f4f1; --panel:#fbfbf9; --line:#d9dcd5; --fg:#1d2321; --muted:#64706b;
+  --accent:#0d6b66; --accent-fg:#ffffff; --hover:#e7eae4;
+  --k:#0d5d8f; --s:#3a7a2a; --n:#b0561a; --b:#8a3fa0; --nul:#8a8f8c;
+  --err:#b3261e; --err-bg:#fbe9e7; --add:#dff3df; --del:#fbe3e0; --chg:#fff2cc;
+  --ui:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#141817; --panel:#1b201e; --line:#2f3733; --fg:#e2e7e4; --muted:#8c9893;
+  --accent:#4fc3b8; --accent-fg:#0b1412; --hover:#262d2a;
+  --k:#7cc0ee; --s:#9ccf86; --n:#f0a56b; --b:#d39be6; --nul:#7d8581;
+  --err:#ff8a80; --err-bg:#3a1f1d; --add:#1f3a22; --del:#431f1c; --chg:#40371a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#141817; --panel:#1b201e; --line:#2f3733; --fg:#e2e7e4; --muted:#8c9893;
+  --accent:#4fc3b8; --accent-fg:#0b1412; --hover:#262d2a;
+  --k:#7cc0ee; --s:#9ccf86; --n:#f0a56b; --b:#d39be6; --nul:#7d8581;
+  --err:#ff8a80; --err-bg:#3a1f1d; --add:#1f3a22; --del:#431f1c; --chg:#40371a; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font:14px/1.45 var(--ui);
+  padding-inline:max(16px,env(safe-area-inset-left,0px)) max(16px,env(safe-area-inset-right,0px));
+  padding-block:12px;display:flex;flex-direction:column;gap:10px;overflow-x:hidden}
+button,input,select,textarea{font:inherit;color:inherit}
+button{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:5px 10px;cursor:pointer;white-space:nowrap}
+button:hover{background:var(--hover)}
+button.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent);font-weight:500}
+button.primary:hover{filter:brightness(1.08)}
+button[aria-pressed="true"],button.on{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+input[type=text],input[type=search],select{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:5px 8px;min-width:0}
+header.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.brand{font-weight:600;font-size:16px;margin-right:6px;display:flex;align-items:baseline;gap:6px}
+.brand small{font:400 11px var(--mono);color:var(--muted)}
+.grp{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+.grp+.grp{padding-left:8px;border-left:1px solid var(--line)}
+.spacer{flex:1}
+main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:10px}
+.pane{background:var(--panel);border:1px solid var(--line);border-radius:8px;display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden}
+.pane>.hd{display:flex;gap:6px;align-items:center;padding:6px 8px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.pane>.hd .t{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-right:auto}
+#src{flex:1;width:100%;border:0;resize:none;background:transparent;font:13px/1.5 var(--mono);padding:10px;outline:none;white-space:pre;overflow:auto;tab-size:2}
+#src.drag{background:var(--hover)}
+.tabs{display:flex;gap:2px;flex-wrap:wrap}
+.tabs button{border-color:transparent;background:transparent;padding:4px 9px}
+.tabs button[aria-selected="true"]{background:var(--accent);color:var(--accent-fg)}
+.view{flex:1;min-height:0;overflow:auto;padding:8px 10px;font:13px/1.55 var(--mono)}
+.view.ui{font-family:var(--ui)}
+.row{display:flex;gap:6px;align-items:center;padding:6px 8px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.tw{font:12px var(--mono);color:var(--muted)}
+/* tree */
+.node{white-space:pre-wrap;word-break:break-word}
+.node .ln{display:block;border-radius:3px;padding-left:2px}
+.node .ln:hover{background:var(--hover)}
+.node .kids{margin-left:1.3em;border-left:1px dotted var(--line);padding-left:.4em}
+.tg{display:inline-block;width:1.1em;cursor:pointer;color:var(--muted);user-select:none;text-align:center}
+.kk{color:var(--k);cursor:pointer}.vs{color:var(--s)}.vn{color:var(--n)}.vb{color:var(--b)}.vz{color:var(--nul)}
+.cnt{color:var(--muted);font-size:11px;margin-left:.5em}
+.collapsed>.kids{display:none}.collapsed>.ln .ell{display:inline}
+.ell{display:none;color:var(--muted)}
+mark{background:var(--chg);color:inherit;border-radius:2px;outline:1px solid var(--accent)}
+.sel>.ln{background:var(--hover);outline:1px solid var(--accent)}
+/* table */
+table{border-collapse:collapse;font:12.5px var(--mono)}
+th,td{border:1px solid var(--line);padding:3px 8px;text-align:left;vertical-align:top;max-width:34ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+th{position:sticky;top:-8px;background:var(--panel);cursor:pointer;user-select:none}
+th:hover{background:var(--hover)}
+td.num{text-align:right;color:var(--n)}
+/* diff */
+.dl{padding:1px 8px;white-space:pre-wrap;word-break:break-word;border-radius:2px}
+.dl.add{background:var(--add)}.dl.del{background:var(--del)}.dl.chg{background:var(--chg)}
+.empty{color:var(--muted);padding:20px;text-align:center;font-family:var(--ui)}
+pre.out{margin:0;white-space:pre-wrap;word-break:break-word}
+.status{display:flex;gap:14px;flex-wrap:wrap;font:12px var(--mono);color:var(--muted);align-items:center;min-height:20px}
+.status .err{color:var(--err);background:var(--err-bg);padding:2px 8px;border-radius:4px;cursor:pointer}
+.status .ok{color:var(--accent)}
+.toast{position:fixed;bottom:calc(16px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:6px 12px;border-radius:6px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s}
+.toast.show{opacity:1}
+@media (max-width:820px){
+  html,body{height:auto}
+  main{grid-template-columns:minmax(0,1fr);flex:none}
+  #src{min-height:240px}
+  .view{min-height:320px;max-height:70vh}
+  .grp+.grp{border-left:0;padding-left:0}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* key / value layout */
+.view{container-type:inline-size}
+.ix{color:var(--muted);margin-right:.2em}
+.tbadge,.pv{display:none;color:var(--muted)}
+.view.kv{--kw:clamp(11em,34cqw,26em)}
+.kv .ln:not(.close){display:flex;align-items:baseline;gap:.8em;padding:2px 4px;border-bottom:1px solid color-mix(in srgb,var(--line) 45%,transparent)}
+.kv .kc{flex:0 0 max(7em,calc(var(--kw) - var(--d,0)*(1.7em + 1px)));overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kv .vc{flex:1;min-width:0;white-space:pre-wrap;word-break:break-word}
+.kv .cl,.kv .cm,.kv .close,.kv .br,.kv .ell{display:none!important}
+.kv .ix{color:var(--k);margin-right:0}
+.kv .node>.ln .kk,.kv .node>.ln .ix{font-weight:500}
+.kv .tbadge{display:inline;margin-right:.5em}
+.kv .cnt{margin-left:0}
+.kv .collapsed>.ln .pv{display:inline;margin-left:.6em}
+.node.sel>.ln{background:color-mix(in srgb,var(--accent) 16%,transparent);outline:none;box-shadow:inset 2px 0 0 var(--accent)}
+.crumbs{display:flex;gap:6px 8px;align-items:center;padding:5px 8px;border-bottom:1px solid var(--line);font:12px var(--mono);flex-wrap:wrap}
+.crumbs .cp{flex:1;min-width:0;display:flex;flex-wrap:wrap;align-items:center;gap:0 2px}
+.crumbs button{padding:2px 8px;font-size:12px}
+.cr{cursor:pointer;padding:1px 5px;border-radius:3px}.cr:hover{background:var(--hover)}
+.cr:last-child{color:var(--accent);font-weight:500}.sep{color:var(--muted)}
+#view:focus-visible{outline-offset:-2px}
+</style>
+<header class="bar">
+  <div class="brand">Plain JSON <small>no ads, no upload</small></div>
+  <div class="grp">
+    <button class="primary" id="bFormat" title="Ctrl+Enter">Format</button>
+    <button id="bMin">Minify</button>
+    <button id="bSort">Sort keys</button>
+    <button id="bFix" title="Fix single quotes, trailing commas, comments, unquoted keys">Repair</button>
+    <button id="bEsc" title="Unwrap a JSON string that holds escaped JSON">Unescape</button>
+  </div>
+  <div class="grp">
+    <select id="indent" aria-label="Indent"><option value="2">2 spaces</option><option value="4">4 spaces</option><option value="tab">Tab</option></select>
+    <button id="bCopy">Copy</button>
+    <button id="bOpen">Open file</button>
+    <button id="bSample">Sample</button>
+    <button id="bClear">Clear</button>
+    <input type="file" id="file" accept=".json,.txt,application/json" hidden>
+  </div>
+  <span class="spacer"></span>
+  <button id="bTheme" title="Toggle theme">Theme</button>
+</header>
+<main>
+  <section class="pane">
+    <div class="hd"><span class="t">Input</span><span class="tw" id="pos">Ln 1, Col 1</span></div>
+    <textarea id="src" spellcheck="false" placeholder="Paste JSON here, or drop a file"></textarea>
+  </section>
+  <section class="pane">
+    <div class="hd">
+      <div class="tabs" role="tablist" id="tabs">
+        <button role="tab" data-v="tree" aria-selected="true">Tree</button>
+        <button role="tab" data-v="table" aria-selected="false">Table</button>
+        <button role="tab" data-v="query" aria-selected="false">Query</button>
+        <button role="tab" data-v="diff" aria-selected="false">Compare</button>
+        <button role="tab" data-v="convert" aria-selected="false">Convert</button>
+        <button role="tab" data-v="stats" aria-selected="false">Stats</button>
+      </div>
+    </div>
+    <div id="tools"></div>
+    <div class="view" id="view"></div>
+  </section>
+</main>
+<div class="status" id="status"></div>
+<div class="toast" id="toast" role="status"></div>
+<script>
+// ---------- core (pure) ----------
+function repairJSON(t){
+  let s=t.replace(/^﻿/,'');
+  let out='',i=0,n=s.length;
+  while(i<n){
+    const c=s[i];
+    if(c==='"'||c==="'"){
+      const q=c;let j=i+1,buf='';
+      while(j<n&&s[j]!==q){
+        if(s[j]==='\\'&&j+1<n){ if(s[j+1]==="'"){buf+="'";j+=2;continue} buf+=s[j]+s[j+1];j+=2;continue }
+        if(s[j]==='"'&&q==="'"){buf+='\\"';j++;continue}
+        if(s[j]==='\n'){buf+='\\n';j++;continue}
+        buf+=s[j++];
+      }
+      out+='"'+buf+'"';i=j+1;continue;
+    }
+    if(c==='/'&&s[i+1]==='/'){while(i<n&&s[i]!=='\n')i++;continue}
+    if(c==='/'&&s[i+1]==='*'){i=s.indexOf('*/',i+2);i=i<0?n:i+2;continue}
+    if(/[A-Za-z_$]/.test(c)){
+      let j=i;while(j<n&&/[\w$]/.test(s[j]))j++;
+      const w=s.slice(i,j);
+      if(['true','false','null'].includes(w))out+=w;
+      else if(w==='undefined'||w==='NaN'||w==='Infinity')out+='null';
+      else out+='"'+w+'"';
+      i=j;continue;
+    }
+    out+=c;i++;
+  }
+  return out.replace(/,\s*([}\]])/g,'$1');
+}
+function sortKeys(v){
+  if(Array.isArray(v))return v.map(sortKeys);
+  if(v&&typeof v==='object'){const o={};Object.keys(v).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})).forEach(k=>o[k]=sortKeys(v[k]));return o}
+  return v;
+}
+function typeOf(v){return v===null?'null':Array.isArray(v)?'array':typeof v}
+function pathStr(p){return p.reduce((a,k)=>typeof k==='number'?a+'['+k+']':(/^[A-Za-z_$][\w$]*$/.test(k)?a+'.'+k:a+'["'+k.replace(/"/g,'\\"')+'"]'),'$')}
+// JSONPath subset: $ . [n] ["k"] .* [*] ..key [?(@.a op v)] [a:b]
+function queryPath(root,expr){
+  expr=expr.trim();if(!expr)return[];
+  if(expr[0]!=='$')expr='$.'+expr;
+  let cur=[{v:root,p:[]}];let i=1;
+  const kids=n=>Array.isArray(n.v)?n.v.map((x,k)=>({v:x,p:n.p.concat(k)})):(n.v&&typeof n.v==='object')?Object.keys(n.v).map(k=>({v:n.v[k],p:n.p.concat(k)})):[];
+  const desc=n=>{let r=[n];kids(n).forEach(c=>r=r.concat(desc(c)));return r};
+  while(i<expr.length){
+    if(expr.startsWith('..',i)){
+      i+=2;let m=/^[\w$]+|^\*/.exec(expr.slice(i));
+      if(m){const k=m[0];i+=k.length;let r=[];cur.forEach(n=>desc(n).forEach(d=>{if(k==='*')r=r.concat(kids(d));else if(d.v&&typeof d.v==='object'&&!Array.isArray(d.v)&&k in d.v)r.push({v:d.v[k],p:d.p.concat(k)})}));cur=r}
+      else if(expr[i]==='['){let r=[];cur.forEach(n=>desc(n).forEach(d=>r.push(d)));cur=r}
+      continue;
+    }
+    if(expr[i]==='.'){
+      i++;const m=/^[^.\[]+/.exec(expr.slice(i));if(!m)throw new Error('Unexpected "." at '+i);
+      i+=m[0].length;const k=m[0];
+      cur=k==='*'?cur.flatMap(kids):cur.filter(n=>n.v&&typeof n.v==='object'&&!Array.isArray(n.v)&&k in n.v).map(n=>({v:n.v[k],p:n.p.concat(k)}));
+      continue;
+    }
+    if(expr[i]==='['){
+      const e=expr.indexOf(']',i);let depth=0,end=-1;
+      for(let j=i;j<expr.length;j++){if(expr[j]==='[')depth++;else if(expr[j]===']'){depth--;if(!depth){end=j;break}}}
+      if(end<0)throw new Error('Missing ]');
+      const inner=expr.slice(i+1,end).trim();i=end+1;
+      let m;
+      if(inner==='*')cur=cur.flatMap(kids);
+      else if((m=/^(-?\d+)$/.exec(inner)))cur=cur.filter(n=>Array.isArray(n.v)).map(n=>{let k=+m[1];if(k<0)k+=n.v.length;return{v:n.v[k],p:n.p.concat(k)}}).filter(x=>x.v!==undefined);
+      else if((m=/^(-?\d*):(-?\d*)$/.exec(inner)))cur=cur.filter(n=>Array.isArray(n.v)).flatMap(n=>{const L=n.v.length;let a=m[1]===''?0:+m[1],b=m[2]===''?L:+m[2];if(a<0)a+=L;if(b<0)b+=L;const r=[];for(let k=Math.max(0,a);k<Math.min(L,b);k++)r.push({v:n.v[k],p:n.p.concat(k)});return r});
+      else if((m=/^(["'])(.*)\1$/.exec(inner))){const k=m[2];cur=cur.filter(n=>n.v&&typeof n.v==='object'&&k in n.v).map(n=>({v:n.v[k],p:n.p.concat(k)}))}
+      else if((m=/^\?\(\s*@((?:\.[\w$]+)*)\s*(==|!=|>=|<=|>|<|=~)?\s*(.*?)\s*\)$/.exec(inner))){
+        const sub=m[1].split('.').filter(Boolean),op=m[2];let rv=m[3];
+        if(op){if(op==='=~'){const r=/^\/(.*)\/(\w*)$/.exec(rv);rv=r?new RegExp(r[1],r[2]):new RegExp(rv)}else{try{rv=JSON.parse(rv.replace(/^'(.*)'$/,'"$1"'))}catch(e){}}}
+        const test=x=>{let v=x;for(const k of sub){if(v==null||typeof v!=='object'||!(k in v))return false;v=v[k]}
+          if(!op)return v!==undefined&&v!==null&&v!==false;
+          switch(op){case'==':return v===rv;case'!=':return v!==rv;case'>':return v>rv;case'<':return v<rv;case'>=':return v>=rv;case'<=':return v<=rv;case'=~':return rv.test(String(v))}};
+        cur=cur.flatMap(kids).filter(n=>test(n.v));
+      } else throw new Error('Unsupported selector ['+inner+']');
+      continue;
+    }
+    throw new Error('Unexpected "'+expr[i]+'" at '+i);
+  }
+  return cur;
+}
+function diffJSON(a,b,p=[],out=[]){
+  const ta=typeOf(a),tb=typeOf(b);
+  if(ta!==tb){out.push({k:'chg',p,a,b});return out}
+  if(ta==='array'){const L=Math.max(a.length,b.length);for(let i=0;i<L;i++){if(i>=a.length)out.push({k:'add',p:p.concat(i),b:b[i]});else if(i>=b.length)out.push({k:'del',p:p.concat(i),a:a[i]});else diffJSON(a[i],b[i],p.concat(i),out)}return out}
+  if(ta==='object'){const ks=new Set([...Object.keys(a),...Object.keys(b)]);ks.forEach(k=>{if(!(k in a))out.push({k:'add',p:p.concat(k),b:b[k]});else if(!(k in b))out.push({k:'del',p:p.concat(k),a:a[k]});else diffJSON(a[k],b[k],p.concat(k),out)});return out}
+  if(a!==b)out.push({k:'chg',p,a,b});
+  return out;
+}
+function flatten(v,p='',o={}){
+  if(Array.isArray(v)){if(!v.length)o[p]=[];else v.forEach((x,i)=>flatten(x,p+'['+i+']',o))}
+  else if(v&&typeof v==='object'){const ks=Object.keys(v);if(!ks.length)o[p]={};else ks.forEach(k=>flatten(v[k],p?p+'.'+k:k,o))}
+  else o[p]=v;
+  return o;
+}
+function toYAML(v,ind=0){
+  const pad='  '.repeat(ind);
+  const sc=x=>typeof x==='string'?(x===''||/^[\s\-?:,\[\]{}#&*!|>'"%@`]|[:#]\s|\s$|^(true|false|null|yes|no|~)$|^[\d.+-]+$/i.test(x)||/\n/.test(x)?JSON.stringify(x):x):String(x);
+  if(Array.isArray(v)){if(!v.length)return'[]';return v.map(x=>{if(x&&typeof x==='object'&&Object.keys(x).length){const s=toYAML(x,ind+1).split('\n');return pad+'- '+s[0].trimStart()+(s.length>1?'\n'+s.slice(1).join('\n'):'')}return pad+'- '+(x&&typeof x==='object'?(Array.isArray(x)?'[]':'{}'):sc(x))}).join('\n')}
+  if(v&&typeof v==='object'){const ks=Object.keys(v);if(!ks.length)return'{}';return ks.map(k=>{const x=v[k],kk=sc(k);if(x&&typeof x==='object'&&Object.keys(x).length)return pad+kk+':\n'+toYAML(x,Array.isArray(x)?ind:ind+1);return pad+kk+': '+(x&&typeof x==='object'?(Array.isArray(x)?'[]':'{}'):sc(x))}).join('\n')}
+  return sc(v);
+}
+function toCSV(v){
+  let rows=Array.isArray(v)?v:[v];
+  const flat=rows.map(r=>r&&typeof r==='object'?flatten(r):{value:r});
+  const cols=[];flat.forEach(r=>Object.keys(r).forEach(k=>{if(!cols.includes(k))cols.push(k)}));
+  const q=x=>{if(x===undefined||x===null)return'';const s=typeof x==='object'?JSON.stringify(x):String(x);return /[",\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s};
+  return [cols.map(q).join(',')].concat(flat.map(r=>cols.map(c=>q(r[c])).join(','))).join('\n');
+}
+function toTS(v,name='Root'){
+  const defs=[],seen={};
+  const cap=s=>s.replace(/[^\w]+(.)?/g,(_,c)=>c?c.toUpperCase():'').replace(/^./,c=>c.toUpperCase())||'Item';
+  function ty(x,nm){
+    if(x===null)return'null';
+    if(Array.isArray(x)){if(!x.length)return'unknown[]';const ts=[...new Set(x.map(e=>ty(e,nm.replace(/s$/,''))))];return(ts.length>1?'('+ts.join(' | ')+')':ts[0])+'[]'}
+    if(typeof x==='object'){const ks=Object.keys(x);if(!ks.length)return'Record<string, unknown>';
+      const body=ks.map(k=>'  '+(/^[A-Za-z_$][\w$]*$/.test(k)?k:JSON.stringify(k))+': '+ty(x[k],cap(k))+';').join('\n');
+      let id=cap(nm),sig=body;if(seen[id]&&seen[id]!==sig){let n=2;while(seen[id+n])n++;id+=n}
+      if(!seen[id]){seen[id]=sig;defs.push('interface '+id+' {\n'+body+'\n}')}return id}
+    return typeof x;
+  }
+  const t=ty(v,name);
+  if(!/^[A-Z]\w*$/.test(t)||t!==cap(name))defs.push('type '+cap(name)+' = '+t+';');
+  return defs.reverse().join('\n\n');
+}
+function stats(v){
+  const s={objects:0,arrays:0,strings:0,numbers:0,booleans:0,nulls:0,keys:0,depth:0,maxArray:0,longestKey:'',bytes:0};
+  (function w(x,d){s.depth=Math.max(s.depth,d);
+    if(Array.isArray(x)){s.arrays++;s.maxArray=Math.max(s.maxArray,x.length);x.forEach(e=>w(e,d+1))}
+    else if(x&&typeof x==='object'){s.objects++;Object.keys(x).forEach(k=>{s.keys++;if(k.length>s.longestKey.length)s.longestKey=k;w(x[k],d+1)})}
+    else if(x===null)s.nulls++;else if(typeof x==='string')s.strings++;else if(typeof x==='number')s.numbers++;else s.booleans++;
+  })(v,0);
+  s.bytes=new Blob([JSON.stringify(v)]).size;
+  return s;
+}
+// big-number safe parse: keep integers beyond 2^53 as strings flagged
+function safeParse(t){return JSON.parse(t)}
+// ---------- UI ----------
+const $=id=>document.getElementById(id);
+const src=$('src'),view=$('view'),tools=$('tools'),statusEl=$('status');
+let data,valid=false,curView='tree',lastErr=null;
+let ui={layout:'kv',selPath:'',search:'',q:'$.store.book[?(@.price>10)].title',fmt:'yaml',cmp:'',tbl:'',sortCol:null,sortDir:1};
+const SAMPLE={store:{name:"Corner Books",open:true,rating:4.6,address:null,book:[
+ {id:1,title:"The Pragmatic Programmer",author:"Hunt & Thomas",price:39.5,tags:["software","craft"],stock:12},
+ {id:2,title:"Designing Data-Intensive Applications",author:"Kleppmann",price:49.9,tags:["databases"],stock:3},
+ {id:3,title:"Refactoring",author:"Fowler",price:44,tags:["software"],stock:0},
+ {id:4,title:"Release It!",author:"Nygard",price:9.99,tags:["ops","resilience"],stock:7}],
+ hours:{mon:"9-18",tue:"9-18",sat:"10-14"}},updated:"2026-10-27T08:30:00Z"};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove('show'),1400)}
+function copy(text,msg='Copied'){
+  const fb=()=>{const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');toast(msg)}catch(e){toast('Copy blocked, select and press Ctrl+C')}ta.remove()};
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(()=>toast(msg),fb);else fb();
+}
+const indentVal=()=>{const v=$('indent').value;return v==='tab'?'\t':+v};
+const fmt=v=>JSON.stringify(v,null,indentVal());
+function errPos(e,t){
+  const m=/position (\d+)/.exec(e.message);let line=null,col=null;
+  if(m){const p=+m[1];const pre=t.slice(0,p).split('\n');line=pre.length;col=pre[pre.length-1].length+1;return{p,line,col}}
+  const m2=/line (\d+) column (\d+)/.exec(e.message);if(m2)return{line:+m2[1],col:+m2[2]};
+  return null;
+}
+function parse(){
+  const t=src.value;
+  if(!t.trim()){data=undefined;valid=false;lastErr=null;return}
+  try{data=JSON.parse(t);valid=true;lastErr=null}
+  catch(e){valid=false;lastErr={msg:e.message,pos:errPos(e,t)}}
+}
+function setSrc(t){src.value=t;try{localStorage.setItem('plainjson.src',t)}catch(e){}refresh()}
+// ---------- tree ----------
+function getAt(p){return p.reduce((o,k)=>o[k],data)}
+function preview(v){
+  if(Array.isArray(v)){const s=v.slice(0,4).map(x=>x&&typeof x==='object'?(Array.isArray(x)?'[…]':'{…}'):JSON.stringify(x)).join(', ');return (s+(v.length>4?', …':'')).slice(0,70)}
+  const k=Object.keys(v);return (k.slice(0,5).join(', ')+(k.length>5?', …':'')).slice(0,70);
+}
+function tree(v,key,path,last,depth){
+  const t=typeOf(v),wrap=document.createElement('div');wrap.className='node';wrap.dataset.path=pathStr(path);wrap._p=path;wrap.style.setProperty('--d',depth);
+  const ln=document.createElement('span');ln.className='ln';
+  const keyHtml=key===null?'':(typeof key==='number'?'<span class="ix">'+key+'</span>':'<span class="kk">"'+esc(key)+'"</span>')+'<span class="cl">: </span>';
+  const comma=last?'':'<span class="cm">,</span>';
+  const isC=t==='object'||t==='array';
+  if(isC){
+    const ks=t==='array'?v.map((_,i)=>i):Object.keys(v),o=t==='array'?'[':'{',c=t==='array'?']':'}';
+    if(!ks.length){ln.innerHTML='<span class="kc"><span class="tg"></span>'+keyHtml+'</span><span class="vc"><span class="vz">'+o+c+'</span>'+comma+'</span>';wrap.appendChild(ln);return wrap}
+    const n=ks.length,lab=t==='array'?(n===1?' item':' items'):(n===1?' key':' keys');
+    ln.innerHTML='<span class="kc"><span class="tg">▾</span>'+keyHtml+'</span><span class="vc"><span class="tbadge">'+o+' '+c+'</span><span class="br">'+o+'</span><span class="ell"> … '+c+comma+'</span><span class="cnt">'+n+lab+'</span><span class="pv">'+esc(preview(v))+'</span></span>';
+    wrap.appendChild(ln);
+    const kids=document.createElement('div');kids.className='kids';
+    ks.forEach((k,i)=>kids.appendChild(tree(v[k],k,path.concat(k),i===ks.length-1,depth+1)));
+    wrap.appendChild(kids);
+    const end=document.createElement('span');end.className='ln close';end.innerHTML=c+comma;wrap.appendChild(end);
+  } else {
+    const cls=t==='string'?'vs':t==='number'?'vn':t==='boolean'?'vb':'vz';
+    const val=t==='string'?'"'+esc(JSON.stringify(v).slice(1,-1).replace(/\\"/g,'"'))+'"':esc(String(v));
+    let extra='';
+    if(t==='string'&&/^https?:\/\/\S+$/.test(v))extra=' <a href="'+esc(v)+'" target="_blank" rel="noopener" style="color:var(--accent)">↗</a>';
+    if(t==='string'&&/^#[0-9a-f]{6}$/i.test(v))extra=' <span style="display:inline-block;width:.9em;height:.9em;background:'+v+';border:1px solid var(--line);vertical-align:-1px"></span>';
+    if(t==='number'&&Math.abs(v)>1e9&&Math.abs(v)<4e12&&Number.isInteger(v))extra=' <span class="cnt" title="as Unix time">'+new Date(v*(v<1e11?1000:1)).toISOString()+'</span>';
+    ln.innerHTML='<span class="kc"><span class="tg"></span>'+keyHtml+'</span><span class="vc"><span class="'+cls+'">'+val+'</span>'+comma+extra+'</span>';
+    wrap.appendChild(ln);
+  }
+  return wrap;
+}
+function renderTree(){
+  view.textContent='';
+  view.classList.toggle('kv',ui.layout==='kv');
+  const root=tree(data,null,[],true,0);view.appendChild(root);
+  if(ui.search)highlight(ui.search);
+  let target=root;
+  if(ui.selPath)for(const n of view.querySelectorAll('.node')){if(n.dataset.path===ui.selPath){target=n;break}}
+  select(target,true);
+}
+function toggle(n,collapse){
+  const tg=n.firstChild.querySelector('.tg');if(!tg||!tg.textContent)return false;
+  const c=collapse===undefined?!n.classList.contains('collapsed'):collapse;
+  n.classList.toggle('collapsed',c);tg.textContent=c?'▸':'▾';return true;
+}
+function select(n,noScroll){
+  view.querySelectorAll('.node.sel').forEach(x=>x.classList.remove('sel'));
+  n.classList.add('sel');ui.selPath=n.dataset.path;
+  if(!noScroll)n.firstChild.scrollIntoView({block:'nearest'});
+  drawCrumbs(n);
+}
+function drawCrumbs(n){
+  const c=$('crumbs');if(!c)return;
+  const chain=[];for(let x=n;x&&x!==view;x=x.parentElement)if(x.classList&&x.classList.contains('node'))chain.unshift(x);
+  c._chain=chain;
+  const seg=(x,i)=>{const k=x._p[x._p.length-1];const l=i===0?'$':(typeof k==='number'?'['+k+']':k);return'<span class="cr" data-i="'+i+'">'+esc(l)+'</span>'};
+  const v=getAt(n._p),t=typeOf(v);
+  c.innerHTML='<span class="cp">'+chain.map(seg).join('<span class="sep">›</span>')+'</span><span class="tw">'+t+(t==='array'?' · '+v.length:t==='object'?' · '+Object.keys(v).length:'')+'</span><button id="cpP">Copy path</button><button id="cpV">Copy value</button>';
+  $('cpP').onclick=()=>copy(pathStr(n._p),'Path copied');
+  $('cpV').onclick=()=>copy(typeof v==='string'?v:JSON.stringify(v,null,2),'Value copied');
+  c.onclick=e=>{const s=e.target.closest('.cr');if(s)select(c._chain[+s.dataset.i])};
+}
+function visibleNodes(){return[...view.querySelectorAll('.node')].filter(n=>!n.parentElement.closest('.collapsed'))}
+view.tabIndex=0;
+view.addEventListener('keydown',e=>{
+  if(curView!=='tree'||!valid||e.target!==view)return;
+  const list=visibleNodes(),cur=view.querySelector('.node.sel')||list[0];let i=list.indexOf(cur);
+  const isC=n=>!!n.querySelector(':scope>.kids');
+  let h=true;
+  switch(e.key){
+    case'ArrowDown':select(list[Math.min(i+1,list.length-1)]);break;
+    case'ArrowUp':select(list[Math.max(i-1,0)]);break;
+    case'Home':select(list[0]);break;
+    case'End':select(list[list.length-1]);break;
+    case'ArrowLeft':if(isC(cur)&&!cur.classList.contains('collapsed'))toggle(cur,true);else{const p=cur.parentElement.closest('.node');if(p)select(p)}break;
+    case'ArrowRight':if(isC(cur)){if(cur.classList.contains('collapsed'))toggle(cur,false);else select(list[i+1])}break;
+    case'Enter':case' ':toggle(cur);break;
+    default:h=false;
+  }
+  if(h)e.preventDefault();
+});
+view.addEventListener('click',e=>{
+  if(curView!=='tree')return;
+  const n=e.target.closest('.node');if(!n)return;
+  if(e.target.closest('.tg'))toggle(n);
+  select(n,true);
+});
+view.addEventListener('dblclick',e=>{if(curView!=='tree')return;const n=e.target.closest('.node');if(n&&e.target.closest('.ln')&&!e.target.closest('.tg')){toggle(n);getSelection().removeAllRanges()}});
+function highlight(q){
+  q=q.toLowerCase();let hits=0;
+  const lns=[...view.querySelectorAll('.ln:not(.close)')];
+  lns.forEach(l=>{
+    if(l.dataset.o){l.innerHTML=l.dataset.o;delete l.dataset.o}
+  });
+  if(!q){$('hits')&&($('hits').textContent='');return}
+  lns.forEach(l=>{
+    const txt=l.textContent.toLowerCase();
+    if(!txt.includes(q))return;
+    // only match own text, not children (ln holds only own line)
+    l.dataset.o=l.innerHTML;hits++;
+    const w=document.createTreeWalker(l,NodeFilter.SHOW_TEXT);const nodes=[];while(w.nextNode())nodes.push(w.currentNode);
+    nodes.forEach(tn=>{const s=tn.nodeValue,low=s.toLowerCase();let i=low.indexOf(q);if(i<0)return;
+      const f=document.createDocumentFragment();let pos=0;
+      while(i>=0){f.append(s.slice(pos,i));const m=document.createElement('mark');m.textContent=s.slice(i,i+q.length);f.append(m);pos=i+q.length;i=low.indexOf(q,pos)}
+      f.append(s.slice(pos));tn.replaceWith(f)});
+    let p=l.parentElement;while(p&&p!==view){if(p.classList.contains('collapsed'))p.classList.remove('collapsed');p=p.parentElement}
+  });
+  if($('hits'))$('hits').textContent=hits+' match'+(hits===1?'':'es');
+  const first=view.querySelector('mark');if(first)first.scrollIntoView({block:'center'});
+}
+function setAll(collapsed,maxDepth){
+  view.querySelectorAll('.node').forEach(n=>{
+    const tg=n.firstChild&&n.firstChild.querySelector&&n.firstChild.querySelector('.tg');
+    if(!tg||!tg.textContent)return;
+    let d=0,p=n.parentElement;while(p&&p!==view){if(p.classList.contains('kids'))d++;p=p.parentElement}
+    const c=collapsed&&(maxDepth==null||d>=maxDepth);
+    n.classList.toggle('collapsed',c);tg.textContent=c?'▸':'▾';
+  });
+}
+// ---------- table ----------
+function findRows(){
+  const ok=a=>Array.isArray(a)&&a.length&&a.every(x=>x&&typeof x==='object'&&!Array.isArray(x));
+  if(ok(data))return{rows:data,path:'$'};
+  let found=null;
+  (function w(x,p){if(found)return;if(ok(x)){found={rows:x,path:pathStr(p)};return}
+    if(x&&typeof x==='object')Object.keys(x).forEach(k=>w(x[k],p.concat(Array.isArray(x)?+k:k)))})(data,[]);
+  return found;
+}
+function renderTable(){
+  let r;
+  if(ui.tbl){try{const m=queryPath(data,ui.tbl)[0];r=m&&Array.isArray(m.v)?{rows:m.v.map(x=>x&&typeof x==='object'?x:{value:x}),path:ui.tbl}:null}catch(e){r=null}}
+  else r=findRows();
+  if(!r){view.innerHTML='<div class="empty">No array of objects found. Set a path above that points to one, for example <code>$.store.book</code>.</div>';return}
+  const flat=r.rows.map(x=>flatten(x));const cols=[];flat.forEach(o=>Object.keys(o).forEach(k=>{if(!cols.includes(k))cols.push(k)}));
+  let idx=flat.map((_,i)=>i);
+  if(ui.sortCol!=null){const c=cols[ui.sortCol];idx.sort((a,b)=>{const x=flat[a][c],y=flat[b][c];if(x===y)return 0;if(x==null)return 1;if(y==null)return-1;return(typeof x==='number'&&typeof y==='number'?x-y:String(x).localeCompare(String(y),undefined,{numeric:true}))*ui.sortDir})}
+  const f=ui.search.toLowerCase();
+  if(f)idx=idx.filter(i=>cols.some(c=>String(flat[i][c]).toLowerCase().includes(f)));
+  let h='<div style="margin-bottom:6px;color:var(--muted)">'+idx.length+' of '+flat.length+' rows from <code>'+esc(r.path)+'</code>. Click a header to sort.</div><div style="overflow:auto"><table><thead><tr><th>#</th>';
+  cols.forEach((c,i)=>h+='<th data-c="'+i+'">'+esc(c)+(ui.sortCol===i?(ui.sortDir>0?' ▲':' ▼'):'')+'</th>');
+  h+='</tr></thead><tbody>';
+  idx.forEach(i=>{h+='<tr><td class="num">'+i+'</td>';cols.forEach(c=>{const v=flat[i][c];h+='<td'+(typeof v==='number'?' class="num"':'')+' title="'+esc(v===undefined?'':JSON.stringify(v))+'">'+(v===undefined?'':esc(typeof v==='object'?JSON.stringify(v):v))+'</td>'});h+='</tr>'});
+  view.innerHTML=h+'</tbody></table></div>';
+  view._rows=flat;view._cols=cols;
+}
+view.addEventListener('click',e=>{
+  const th=e.target.closest('th[data-c]');if(!th)return;const c=+th.dataset.c;
+  if(ui.sortCol===c)ui.sortDir*=-1;else{ui.sortCol=c;ui.sortDir=1}renderTable();
+});
+// ---------- query ----------
+function renderQuery(){
+  let res;try{res=queryPath(data,ui.q)}catch(e){view.innerHTML='<div class="empty" style="color:var(--err)">'+esc(e.message)+'</div>';return}
+  window._q=res;
+  let h='<div style="color:var(--muted);margin-bottom:6px">'+res.length+' result'+(res.length===1?'':'s')+'</div>';
+  res.slice(0,500).forEach(r=>{h+='<div class="dl" style="border-bottom:1px solid var(--line)"><div class="tw">'+esc(pathStr(r.p))+'</div><pre class="out">'+esc(JSON.stringify(r.v,null,2))+'</pre></div>'});
+  if(res.length>500)h+='<div class="empty">Showing first 500</div>';
+  view.innerHTML=h||'<div class="empty">No matches</div>';
+}
+// ---------- compare ----------
+function renderDiff(){
+  if(!ui.cmp.trim()){view.innerHTML='<div class="empty">Paste a second JSON document in the box above to compare it with the input. Differences are listed by path.</div>';return}
+  let b;try{b=JSON.parse(ui.cmp)}catch(e){view.innerHTML='<div class="empty" style="color:var(--err)">Second document: '+esc(e.message)+'</div>';return}
+  const d=diffJSON(data,b);
+  if(!d.length){view.innerHTML='<div class="empty"><span class="ok" style="color:var(--accent)">Identical.</span> No differences found.</div>';return}
+  const s=x=>esc(JSON.stringify(x));
+  let h='<div style="color:var(--muted);margin-bottom:6px">'+d.length+' difference'+(d.length===1?'':'s')+': '+d.filter(x=>x.k==='add').length+' added, '+d.filter(x=>x.k==='del').length+' removed, '+d.filter(x=>x.k==='chg').length+' changed</div>';
+  d.forEach(x=>{h+='<div class="dl '+x.k+'"><b>'+(x.k==='add'?'+ ':x.k==='del'?'− ':'~ ')+esc(pathStr(x.p))+'</b>  '+(x.k==='chg'?s(x.a)+' → '+s(x.b):x.k==='add'?s(x.b):s(x.a))+'</div>'});
+  view.innerHTML=h;
+}
+// ---------- convert ----------
+function convertOut(){
+  switch(ui.fmt){case'yaml':return toYAML(data);case'csv':return toCSV(data);case'ts':return toTS(data);case'min':return JSON.stringify(data);
+    case'flat':return JSON.stringify(flatten(data),null,2);case'js':return 'const data = '+fmt(data).replace(/"([A-Za-z_$][\w$]*)":/g,'$1:')+';';
+    case'esc':return JSON.stringify(JSON.stringify(data));case'b64':return btoa(unescape(encodeURIComponent(JSON.stringify(data))))}
+}
+function renderConvert(){
+  let o;try{o=convertOut()}catch(e){o='Error: '+e.message}
+  view.innerHTML='<pre class="out">'+esc(o)+'</pre>';view._out=o;
+}
+// ---------- stats ----------
+function renderStats(){
+  const s=stats(data);const rows=[['Size (minified)',s.bytes.toLocaleString()+' bytes'],['Size (as typed)',new Blob([src.value]).size.toLocaleString()+' bytes'],['Max depth',s.depth],['Objects',s.objects],['Arrays',s.arrays],['Keys',s.keys],['Strings',s.strings],['Numbers',s.numbers],['Booleans',s.booleans],['Nulls',s.nulls],['Longest array',s.maxArray],['Longest key',s.longestKey||'none']];
+  view.className='view ui';
+  view.innerHTML='<table style="font-family:var(--ui)">'+rows.map(r=>'<tr><th style="position:static;cursor:default">'+r[0]+'</th><td>'+esc(r[1])+'</td></tr>').join('')+'</table>';
+}
+// ---------- tools bars + dispatch ----------
+function renderTools(){
+  const bar=h=>{tools.innerHTML='<div class="row">'+h+'</div>'};
+  const m={
+   tree:()=>bar('<input type="search" id="tsearch" placeholder="Search keys and values" value="'+esc(ui.search)+'" style="flex:1 1 170px"><span class="tw" id="hits"></span><button id="tExp">Expand</button><button id="tCol">Collapse</button><button id="tL1">Level 1</button><button id="tL2">Level 2</button><span class="grp" role="group" aria-label="Layout"><button id="lyKV">Key · Value</button><button id="lyCode">Code</button></span>'),
+   table:()=>bar('<input type="text" id="tpath" placeholder="Auto-detect, or path like $.store.book" value="'+esc(ui.tbl)+'" style="flex:1;min-width:140px"><input type="search" id="tsearch" placeholder="Filter rows" value="'+esc(ui.search)+'" style="width:140px"><button id="tCsv">Copy CSV</button>'),
+   query:()=>bar('<input type="text" id="qin" placeholder="$.store.book[?(@.price>10)].title" value="'+esc(ui.q)+'" style="flex:1;min-width:160px"><button id="qCopy">Copy results</button><button id="qHelp" title="$ root, .key, [0], [-1], [1:3], .*, ..key, [?(@.x>5)], [?(@.name=~/ab/i)]">Syntax</button>'),
+   diff:()=>{bar('<textarea id="cmp" placeholder="Paste second JSON to compare" spellcheck="false" style="flex:1;min-width:160px;height:70px;font:12px var(--mono);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px"></textarea>');$('cmp').value=ui.cmp},
+   convert:()=>bar('<select id="cfmt"><option value="yaml">YAML</option><option value="csv">CSV</option><option value="ts">TypeScript types</option><option value="js">JS object literal</option><option value="flat">Flattened paths</option><option value="min">Minified</option><option value="esc">Escaped string</option><option value="b64">Base64</option></select><button id="cCopy">Copy output</button>'),
+   stats:()=>{tools.innerHTML=''}
+  };
+  m[curView]();
+  if(curView==='tree')tools.insertAdjacentHTML('beforeend','<div class="crumbs" id="crumbs"></div>');
+  const g=id=>$(id);
+  if(g('tsearch'))g('tsearch').oninput=e=>{ui.search=e.target.value;if(curView==='tree')highlight(ui.search);else renderTable()};
+  if(g('lyKV')){const sync=()=>{g('lyKV').setAttribute('aria-pressed',ui.layout==='kv');g('lyCode').setAttribute('aria-pressed',ui.layout==='code')};sync();
+    const set=l=>{ui.layout=l;try{localStorage.setItem('plainjson.layout',l)}catch(e){}view.classList.toggle('kv',l==='kv');sync()};g('lyKV').onclick=()=>set('kv');g('lyCode').onclick=()=>set('code')}
+  if(g('tExp'))g('tExp').onclick=()=>setAll(false);
+  if(g('tCol'))g('tCol').onclick=()=>setAll(true,0);
+  if(g('tL1'))g('tL1').onclick=()=>setAll(true,1);
+  if(g('tL2'))g('tL2').onclick=()=>setAll(true,2);
+  if(g('tpath'))g('tpath').oninput=e=>{ui.tbl=e.target.value;ui.sortCol=null;renderTable()};
+  if(g('tCsv'))g('tCsv').onclick=()=>{try{copy(toCSV(view._rows?view._rows.map(r=>r):data),'CSV copied')}catch(e){toast('Nothing to copy')}};
+  if(g('qin'))g('qin').oninput=e=>{ui.q=e.target.value;renderQuery()};
+  if(g('qCopy'))g('qCopy').onclick=()=>copy(JSON.stringify((window._q||[]).map(r=>r.v),null,2),'Results copied');
+  if(g('qHelp'))g('qHelp').onclick=()=>{ui.q='$.store.book[?(@.price>10)].title';g('qin').value=ui.q;renderQuery();toast('Syntax: $ .key [0] [-1] [1:3] .* ..key [?(@.x>5)] [?(@.n=~/re/i)]')};
+  if(g('cmp'))g('cmp').oninput=e=>{ui.cmp=e.target.value;renderDiff()};
+  if(g('cfmt')){g('cfmt').value=ui.fmt;g('cfmt').onchange=e=>{ui.fmt=e.target.value;renderConvert()}}
+  if(g('cCopy'))g('cCopy').onclick=()=>copy(view._out||'','Output copied');
+}
+function renderView(){
+  view.className='view';
+  if(!valid){view.innerHTML='<div class="empty">'+(lastErr?'Fix the error in the input to see results.':'Paste or open some JSON to get started.')+'</div>';return}
+  ({tree:renderTree,table:renderTable,query:renderQuery,diff:renderDiff,convert:renderConvert,stats:renderStats})[curView]();
+}
+function refresh(){
+  parse();renderView();
+  let h='';
+  if(lastErr){const p=lastErr.pos;h='<span class="err" id="goErr" title="Click to jump">'+esc(lastErr.msg)+(p&&p.line?' (line '+p.line+', col '+p.col+')':'')+'</span>'}
+  else if(valid){const s=stats(data);h='<span class="ok">Valid JSON</span><span>'+s.bytes.toLocaleString()+' bytes</span><span>depth '+s.depth+'</span><span>'+s.keys+' keys</span>'}
+  statusEl.innerHTML=h;
+  const ge=$('goErr');if(ge)ge.onclick=()=>{const p=lastErr.pos;if(p&&p.p!=null){src.focus();src.setSelectionRange(p.p,p.p+1)}};
+}
+// ---------- wiring ----------
+$('tabs').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;curView=b.dataset.v;
+  [...$('tabs').children].forEach(x=>x.setAttribute('aria-selected',x===b));
+  try{history.replaceState(null,'','#'+curView)}catch(_){}
+  renderTools();renderView()});
+let tm;src.addEventListener('input',()=>{clearTimeout(tm);tm=setTimeout(()=>{try{localStorage.setItem('plainjson.src',src.value)}catch(e){}refresh()},180)});
+function pos(){const pre=src.value.slice(0,src.selectionStart).split('\n');$('pos').textContent='Ln '+pre.length+', Col '+(pre[pre.length-1].length+1)}
+['keyup','click','focus'].forEach(ev=>src.addEventListener(ev,pos));
+src.addEventListener('keydown',e=>{
+  if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();$('bFormat').click()}
+  if(e.key==='Tab'){e.preventDefault();document.execCommand('insertText',false,'  ')}
+});
+function need(){parse();if(!valid){toast(lastErr?'Fix the error first, or try Repair':'Nothing to format');return false}return true}
+$('bFormat').onclick=()=>{if(need())setSrc(fmt(data))};
+$('bMin').onclick=()=>{if(need())setSrc(JSON.stringify(data))};
+$('bSort').onclick=()=>{if(need())setSrc(fmt(sortKeys(data)))};
+$('bFix').onclick=()=>{try{const r=JSON.parse(repairJSON(src.value));setSrc(fmt(r));toast('Repaired')}catch(e){toast('Could not repair: '+e.message)}};
+$('bEsc').onclick=()=>{try{let v=JSON.parse(src.value);for(let i=0;i<3&&typeof v==='string';i++)v=JSON.parse(v);if(typeof v==='string')throw new Error('not JSON inside');setSrc(fmt(v));toast('Unescaped')}catch(e){toast('Input is not an escaped JSON string')}};
+$('indent').onchange=()=>{try{localStorage.setItem('plainjson.indent',$('indent').value)}catch(e){}if(valid)setSrc(fmt(data))};
+$('bCopy').onclick=()=>copy(src.value);
+$('bClear').onclick=()=>{setSrc('');src.focus()};
+$('bSample').onclick=()=>setSrc(fmt(SAMPLE));
+$('bOpen').onclick=()=>$('file').click();
+function loadFile(f){if(!f)return;const r=new FileReader();r.onload=()=>setSrc(String(r.result));r.readAsText(f)}
+$('file').onchange=e=>loadFile(e.target.files[0]);
+['dragover','dragenter'].forEach(ev=>src.addEventListener(ev,e=>{e.preventDefault();src.classList.add('drag')}));
+['dragleave','drop'].forEach(ev=>src.addEventListener(ev,e=>{e.preventDefault();src.classList.remove('drag');if(ev==='drop')loadFile(e.dataTransfer.files[0])}));
+$('bTheme').onclick=()=>{const r=document.documentElement;const dark=r.dataset.theme?r.dataset.theme==='dark':matchMedia('(prefers-color-scheme:dark)').matches;r.dataset.theme=dark?'light':'dark';try{localStorage.setItem('plainjson.theme',r.dataset.theme)}catch(e){}};
+(function init(){
+  let saved='',ind='',th='';
+  try{saved=localStorage.getItem('plainjson.src')||'';ind=localStorage.getItem('plainjson.indent')||'';th=localStorage.getItem('plainjson.theme')||''}catch(e){}
+  try{const ly=localStorage.getItem('plainjson.layout');if(ly)ui.layout=ly}catch(e){}
+  if(ind)$('indent').value=ind;if(th)document.documentElement.dataset.theme=th;
+  const h=(location.hash||'').slice(1);
+  if(['tree','table','query','diff','convert','stats'].includes(h)){curView=h;[...$('tabs').children].forEach(x=>x.setAttribute('aria-selected',x.dataset.v===h))}
+  src.value=saved||fmt(SAMPLE);
+  renderTools();refresh();pos();
+})();
+</script>
+
+</body></html>
